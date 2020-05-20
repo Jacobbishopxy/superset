@@ -33,7 +33,8 @@ RUN mkdir /app \
 # in order to only build if and only if requirements change
 COPY ./requirements.txt /app/
 RUN cd /app \
-        && pip install --no-cache -r requirements.txt
+    && pip install --upgrade pip \
+    && pip install --no-cache -r requirements.txt
 
 
 ######################################################################
@@ -113,6 +114,23 @@ ENTRYPOINT ["/usr/bin/docker-entrypoint.sh"]
 # Dev image...
 ######################################################################
 FROM lean AS dev
+
+COPY ./requirements* ./docker/requirements* /app/
+
+USER root
+# Cache everything for dev purposes...
+RUN cd /app \
+    && pip install --ignore-installed -e . \
+    && pip install --ignore-installed -r requirements.txt \
+    && pip install --ignore-installed -r requirements-dev.txt \
+    && pip install --ignore-installed -r requirements-extra.txt \
+    && pip install --ignore-installed -r requirements-local.txt || true
+USER superset
+
+######################################################################
+# Prod image...
+######################################################################
+FROM lean AS prod
 
 COPY ./requirements-dev.txt ./docker/requirements* /app/
 
