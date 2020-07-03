@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import json
+from enum import Enum
 from typing import Any, Dict, Hashable, List, Optional, Type, Union
 
 from flask_appbuilder.security.sqla.models import User
@@ -22,6 +23,7 @@ from sqlalchemy import and_, Boolean, Column, Integer, String, Text
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import foreign, Query, relationship, RelationshipProperty
 
+from superset import security_manager
 from superset.constants import NULL_STRING
 from superset.models.helpers import AuditMixinNullable, ImportMixin, QueryResult
 from superset.models.slice import Slice
@@ -51,6 +53,11 @@ COLUMN_FORM_DATA_PARAMS = [
 ]
 
 
+class DatasourceKind(str, Enum):
+    VIRTUAL = "virtual"
+    PHYSICAL = "physical"
+
+
 class BaseDatasource(
     AuditMixinNullable, ImportMixin
 ):  # pylint: disable=too-many-public-methods
@@ -78,6 +85,9 @@ class BaseDatasource(
     # Used to do code highlighting when displaying the query in the UI
     query_language: Optional[str] = None
 
+    # Only some datasources support Row Level Security
+    is_rls_supported: bool = False
+
     @property
     def name(self) -> str:
         # can be a Column or a property pointing to one
@@ -100,6 +110,13 @@ class BaseDatasource(
     sql: Optional[str] = None
     owners: List[User]
     update_from_object_fields: List[str]
+
+    @property
+    def kind(self) -> str:
+        if self.sql:
+            return DatasourceKind.VIRTUAL.value
+
+        return DatasourceKind.PHYSICAL.value
 
     @declared_attr
     def slices(self) -> RelationshipProperty:
@@ -332,7 +349,7 @@ class BaseDatasource(
                     value = utils.cast_to_num(value)
                 if value == NULL_STRING:
                     return None
-                elif value == "<empty string>":
+                if value == "<empty string>":
                     return ""
             return value
 
@@ -480,6 +497,15 @@ class BaseDatasource(
             return NotImplemented
         return self.uid == other.uid
 
+    def raise_for_access(self) -> None:
+        """
+        Raise an exception if the user cannot access the resource.
+
+        :raises SupersetSecurityException: If the user cannot access the resource
+        """
+
+        security_manager.raise_for_access(datasource=self)
+
 
 class BaseColumn(AuditMixinNullable, ImportMixin):
     """Interface for column"""
@@ -500,7 +526,7 @@ class BaseColumn(AuditMixinNullable, ImportMixin):
     export_fields: List[Any] = []
 
     def __repr__(self) -> str:
-        return self.column_name
+        return str(self.column_name)
 
     num_types = (
         "DOUBLE",

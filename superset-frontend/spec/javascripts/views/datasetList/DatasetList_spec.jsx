@@ -24,6 +24,7 @@ import fetchMock from 'fetch-mock';
 
 import DatasetList from 'src/views/datasetList/DatasetList';
 import ListView from 'src/components/ListView/ListView';
+import { supersetTheme, ThemeProvider } from '@superset-ui/style';
 
 // store needed for withToasts(datasetTable)
 const mockStore = configureStore([thunk]);
@@ -31,10 +32,12 @@ const store = mockStore({});
 
 const datasetsInfoEndpoint = 'glob:*/api/v1/dataset/_info*';
 const datasetsOwnersEndpoint = 'glob:*/api/v1/dataset/related/owners*';
+const databaseEndpoint = 'glob:*/api/v1/dataset/related/database*';
 const datasetsEndpoint = 'glob:*/api/v1/dataset/?*';
 
 const mockdatasets = [...new Array(3)].map((_, i) => ({
   changed_by_name: 'user',
+  kind: ['physical', 'virtual'][Math.floor(Math.random() * 2)],
   changed_by_url: 'changed_by_url',
   changed_by: 'user',
   changed_on: new Date().toISOString(),
@@ -62,11 +65,16 @@ fetchMock.get(datasetsEndpoint, {
   result: mockdatasets,
   dataset_count: 3,
 });
+fetchMock.get(databaseEndpoint, {
+  result: [],
+});
 
 describe('DatasetList', () => {
   const mockedProps = {};
   const wrapper = mount(<DatasetList {...mockedProps} />, {
     context: { store },
+    wrappingComponent: ThemeProvider,
+    wrappingComponentProps: { theme: supersetTheme },
   });
 
   it('renders', () => {
@@ -88,7 +96,7 @@ describe('DatasetList', () => {
   });
 
   it('fetches data', () => {
-    wrapper.update();
+    // wrapper.update();
     const callsD = fetchMock.calls(/dataset\/\?q/);
     expect(callsD).toHaveLength(1);
     expect(callsD[0][0]).toMatchInlineSnapshot(
