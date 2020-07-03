@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import dataclasses
 import functools
 import logging
 import traceback
 from datetime import datetime
 from typing import Any, Callable, cast, Dict, List, Optional, TYPE_CHECKING, Union
 
-import dataclasses
 import simplejson as json
 import yaml
 from flask import abort, flash, g, get_flashed_messages, redirect, Response, session
@@ -212,7 +212,7 @@ def validate_sqlatable(table: models.SqlaTable) -> None:
     try:
         table.get_sqla_table_object()
     except Exception as ex:
-        logger.exception(f"Got an error in pre_add for {table.name}")
+        logger.exception("Got an error in pre_add for %s", table.name)
         raise Exception(
             _(
                 "Table [%{table}s] could not be found, "
@@ -375,7 +375,7 @@ class YamlExportMixin:  # pylint: disable=too-few-public-methods
 
 
 class DeleteMixin:  # pylint: disable=too-few-public-methods
-    def _delete(self: BaseView, primary_key: int,) -> None:
+    def _delete(self: BaseView, primary_key: int) -> None:
         """
             Delete function logic, override to implement diferent logic
             deletes the record with primary_key = primary_key
@@ -433,7 +433,7 @@ class DeleteMixin:  # pylint: disable=too-few-public-methods
 
 class DatasourceFilter(BaseFilter):  # pylint: disable=too-few-public-methods
     def apply(self, query: Query, value: Any) -> Query:
-        if security_manager.all_datasource_access():
+        if security_manager.can_access_all_datasources():
             return query
         datasource_perms = security_manager.user_view_menu_names("datasource_access")
         schema_perms = security_manager.user_view_menu_names("schema_access")
@@ -498,8 +498,7 @@ def check_ownership(obj: Any, raise_if_false: bool = True) -> bool:
         return True
     if raise_if_false:
         raise security_exception
-    else:
-        return False
+    return False
 
 
 def bind_field(
@@ -520,3 +519,18 @@ def bind_field(
 
 
 FlaskForm.Meta.bind_field = bind_field
+
+
+@superset_app.after_request
+def apply_http_headers(response: Response) -> Response:
+    """Applies the configuration's http headers to all responses"""
+
+    # HTTP_HEADERS is deprecated, this provides backwards compatibility
+    response.headers.extend(  # type: ignore
+        {**config["OVERRIDE_HTTP_HEADERS"], **config["HTTP_HEADERS"]}
+    )
+
+    for k, v in config["DEFAULT_HTTP_HEADERS"].items():
+        if k not in response.headers:
+            response.headers[k] = v
+    return response

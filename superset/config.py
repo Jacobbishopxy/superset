@@ -306,7 +306,7 @@ DEFAULT_FEATURE_FLAGS: Dict[str, bool] = {
     "SIP_38_VIZ_REARCHITECTURE": False,
     "TAGGING_SYSTEM": False,
     "SQLLAB_BACKEND_PERSISTENCE": False,
-    "LIST_VIEWS_NEW_UI": False,
+    "LIST_VIEWS_SIP34_FILTER_UI": False,
 }
 
 # This is merely a default.
@@ -365,8 +365,9 @@ CORS_OPTIONS: Dict[Any, Any] = {}
 SUPERSET_WEBSERVER_DOMAINS = None
 
 # Allowed format types for upload on Database view
-# TODO: Add processing of other spreadsheet formats (xls, xlsx etc)
-ALLOWED_EXTENSIONS = {"csv", "tsv"}
+EXCEL_EXTENSIONS = {"xlsx", "xls"}
+CSV_EXTENSIONS = {"csv", "tsv"}
+ALLOWED_EXTENSIONS = {*EXCEL_EXTENSIONS, *CSV_EXTENSIONS}
 
 # CSV Options: key/value pairs that will be passed as argument to DataFrame.to_csv
 # method.
@@ -737,6 +738,10 @@ ENABLE_FLASK_COMPRESS = True
 # Enable / disable scheduled email reports
 ENABLE_SCHEDULED_EMAIL_REPORTS = False
 
+# Slack API token for the superset reports
+SLACK_API_TOKEN = None
+SLACK_PROXY = None
+
 # If enabled, certail features are run in debug mode
 # Current list:
 # * Emails are sent using dry-run mode (logging only)
@@ -795,7 +800,8 @@ DOCUMENTATION_URL = None
 DOCUMENTATION_TEXT = "Documentation"
 DOCUMENTATION_ICON = None  # Recommended size: 16x16
 
-# Enables the replacement react views for all the FAB views: list, edit, show.
+# Enables the replacement react views for all the FAB views (list, edit, show) with
+# designs introduced in SIP-34: https://github.com/apache/incubator-superset/issues/8976
 # This is a work in progress so not all features available in FAB have been implemented
 ENABLE_REACT_CRUD_VIEWS = False
 
@@ -872,6 +878,14 @@ SIP_15_TOAST_MESSAGE = (
     'class="alert-link">here</a>.'
 )
 
+
+# SQLA table mutator, every time we fetch the metadata for a certain table
+# (superset.connectors.sqla.models.SqlaTable), we call this hook
+# to allow mutating the object with this callback.
+# This can be used to set any properties of the object based on naming
+# conventions and such. You can find examples in the tests.
+SQLA_TABLE_MUTATOR = lambda table: table
+
 if CONFIG_PATH_ENV_VAR in os.environ:
     # Explicitly import config module that is not necessarily in pythonpath; useful
     # for case where app is being executed via pex.
@@ -886,7 +900,7 @@ if CONFIG_PATH_ENV_VAR in os.environ:
         print(f"Loaded your LOCAL configuration at [{cfg_path}]")
     except Exception:
         logger.exception(
-            f"Failed to import config for {CONFIG_PATH_ENV_VAR}={cfg_path}"
+            "Failed to import config for %s=%s", CONFIG_PATH_ENV_VAR, cfg_path
         )
         raise
 elif importlib.util.find_spec("superset_config"):
